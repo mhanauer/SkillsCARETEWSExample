@@ -40,6 +40,8 @@ training = dat[inTrain,]
 testing = dat[-inTrain,] 
 ```
 Here we are creating the cross validation method that will be used by CARET to create the training sets. Cross validation means to randomly split the data into k (in our case ten) data testing data sets and the repeated part just means to repeat this process k times (in our case ten as well).
+
+There are ten data sets.  Then you make 9 the training and one the testing.  Then you do this again, by making the next data set the testing and everything else the training.  Do this as many times as the number parameter says often 10 times.  Repeat means repeat this process ten times (when splitting the data into k data sets do this randomly ten times and repeat the process each time).
 ```{r}
 fitControl <- trainControl(
   method = "repeatedcv",
@@ -51,18 +53,47 @@ Now we are ready to the develop model. We use the train function in CARET to reg
 Next the method or type of regression is selected. Here we are using the gbm or Stochastic Gradient Boosting that is used for regression and classification. More information about the gbm package can be found here: https://cran.r-project.org/web/packages/gbm/gbm.pdf
 
 The trControl is used to assign the validation method created above. It says run a gbm model with a ten cross validation method and repeat that process ten times. Finally, the verbose command just hides the calculations CARET computes for the user.
+
+If you want to customize the tunning grid use the code below.  We may want more shrinkage and min obs per node values
+
+Good website: http://uc-r.github.io/gbm_regression
 ```{r}
 set.seed(12345)
-gbmFit1 <- train(dropout ~ ., data = training, 
+
+gbmGrid <-  expand.grid(interaction.depth = c(1, 5, 9), 
+                        n.trees = (1:30)*50, 
+                        shrinkage = c(0.1, .05),
+                        n.minobsinnode = c(20, 25, 30))
+
+gbmFit_tune <- train(attendance ~ ., data = training, 
+                 method = "gbm", 
+                 trControl = fitControl,
+                 verbose = FALSE,
+                 tuneGrid = gbmGrid)
+gbmFit <- train(attendance ~ ., data = training, 
                  method = "gbm", 
                  trControl = fitControl,
                  verbose = FALSE)
+
+gbmFit
+summary(gbmFit)
 ```
 Let’s now inspect the results. The most important piece of information is the accuracy, because that is what CARET uses to choose the final model. It is the overall agreement rate between the cross validation methods. The Kappa is another statistical method used for assessing models with categorical variables such as ours.
 
 CARET chose the first model with an interaction depth of 1, number of trees at 50, an accuracy of 95% and a Kappa of 90%.
 ```{r}
 gbmFit1
+summary(gbmFit1)
+library(rpart)
+library(rpart.plot)
+library(caret)
+library(MASS)
+summary(Boston)
+
+## I think what happens is that we create leafs that fit into these classifcations which are based on what?? Once we have the data into these classifcation we take the average of the observed values with those attributes for those leaves and that is the predicted value?  But when do we stop, because we could create a leaf for each data set and overfit the data.
+tree_age_crime = rpart(medv ~ age + crim, data=Boston)
+prp(tree_age_crime)
+summary(tree_age_crime)
 ```
 Finally, we can use the training model to predict both classifications and probabilities for the test data set.
 
@@ -73,8 +104,15 @@ The first piece of code includes the argument type = “prob”, which tells R t
 ```{r}
 predict(gbmFit1, newdata = head(testing), type = "prob")
 ```
+Going into gbm more in depth
+```{r}
+require(gbm)
+require(MASS)#package with the boston housing dataset
 
+#separating training and test data
+train=sample(1:506,size=374)
+Boston.boost=gbm(medv ~ . ,data = Boston[train,],distribution = "gaussian",n.trees = 10000, shrinkage = 0.01, interaction.depth = 4)
 
-
-
+summary(Boston.boost)
+```
 
